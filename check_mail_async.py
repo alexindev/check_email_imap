@@ -13,7 +13,7 @@ def get_provider(mail: str):
 
 def write_csv(all_data: dict):
     with open(csv_file, 'a') as csvfile:
-        writer = csv.writer(csvfile)
+        writer = csv.writer(csvfile, delimiter=';')
         for email, data in all_data.items():
             for sender, title in data.items():
                 writer.writerow([email, sender, title])
@@ -105,7 +105,7 @@ if __name__ == '__main__':
             print('choose 1 or 2')
 
     with open(csv_file, 'w', newline='') as cfile:
-        w = csv.writer(cfile)
+        w = csv.writer(cfile, delimiter=';')
         w.writerow(['email', 'sender', 'title'])
 
     with open(email_file, encoding='utf-8') as file:
