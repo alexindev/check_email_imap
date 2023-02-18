@@ -1,7 +1,10 @@
 import csv
 import asyncio
+import aiocsv
+import aiofiles
 from aioimaplib import aioimaplib
 from email.header import decode_header
+from loguru import logger
 
 
 def get_provider(mail: str):
@@ -11,18 +14,18 @@ def get_provider(mail: str):
             return key
 
 
-def write_csv(all_data: dict):
-    with open(csv_file, 'a') as csvfile:
-        writer = csv.writer(csvfile, delimiter=';')
+async def write_csv(all_data: dict):
+    async with aiofiles.open(csv_file, 'a') as csvfile:
+        writer = aiocsv.AsyncWriter(csvfile, delimiter=';')
         for email, data in all_data.items():
             for sender, title in data.items():
-                writer.writerow([email, sender, title])
+                await writer.writerow([email, sender, title])
                 email = ''
 
 
-async def check_mailbox(queue: asyncio.Queue):
-    while not queue.empty():
-        mail = await queue.get()
+async def check_mailbox(email: list, i: int):
+    while email:
+        mail = email.pop(0)
         host = get_provider(mail)
         imap_client = aioimaplib.IMAP4_SSL(host=host)
         await imap_client.wait_hello_from_server()
@@ -53,20 +56,17 @@ async def check_mailbox(queue: asyncio.Queue):
             data_dict[mail] = mail_dict
 
             print(data_dict)
-            write_csv(data_dict)
+            await write_csv(data_dict)
             data_dict.clear()
             data_list.clear()
             await imap_client.logout()
 
         except Exception as ex:
-            print('\n' + f'{mail}', ex)
+            logger.error('\n' + f'{mail}', ex)
 
 
 async def main(email: list):
-    queue = asyncio.Queue()
-    for mail in email:
-        queue.put_nowait(mail)
-    tasks = [asyncio.create_task(check_mailbox(queue)) for _ in range(5)]
+    tasks = [asyncio.create_task(check_mailbox(email, _)) for _ in range(5)]
     await asyncio.gather(*tasks)
 
 
@@ -80,8 +80,7 @@ if __name__ == '__main__':
             'ro.ru',
             'rambler.ua'],
         'imap.mail.ru': ['mail.ru', 'internet.ru', 'bk.ru', 'inbox.ru', 'list.ru'],
-        'imap.gmail.com': 'gmail.com',
-        'imap.yandex.ru': 'yandex.ru'
+        'imap.gmail.com': 'gmail.com'
     }
     email_file = input('drop .txt file with emails: ')
     password = input('email password: ')
@@ -111,6 +110,5 @@ if __name__ == '__main__':
     with open(email_file, encoding='utf-8') as file:
         emails = [row.strip() for row in file]
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(emails))
-    print('work is done!')
+    asyncio.run(main(emails))
+    logger.info('work is done!')
