@@ -4,7 +4,6 @@ import aiocsv
 import aiofiles
 from aioimaplib import aioimaplib
 from email.header import decode_header
-from loguru import logger
 
 
 def get_provider(mail: str):
@@ -23,20 +22,22 @@ async def write_csv(all_data: dict):
                 email = ''
 
 
-async def check_mailbox(email: list, i: int):
+async def check_mailbox(email: list):
     while email:
         mail = email.pop(0)
         host = get_provider(mail)
-        imap_client = aioimaplib.IMAP4_SSL(host=host)
-        await imap_client.wait_hello_from_server()
+
         try:
+            imap_client = aioimaplib.IMAP4_SSL(host=host)
+            await imap_client.wait_hello_from_server()
             await imap_client.login(mail, password)
             await imap_client.select(email_folder)
         except Exception as ex:
             print('\n' + f'{mail}, check password or on imap', ex)
+
         try:
-            response = await imap_client.uid('fetch', '1:*',
-                                             '(UID FLAGS BODY.PEEK[HEADER.FIELDS ("From", "Subject")])')
+            response = await imap_client.uid('fetch', '1:*', '(UID FLAGS BODY.PEEK[HEADER.FIELDS ("From", "Subject")])')
+            await imap_client.logout()
             for i in response.lines:
                 if '@' in str(i):
                     sender = str(i).split('<')[-1].split('>')[0]
@@ -59,14 +60,13 @@ async def check_mailbox(email: list, i: int):
             await write_csv(data_dict)
             data_dict.clear()
             data_list.clear()
-            await imap_client.logout()
 
         except Exception as ex:
-            logger.error('\n' + f'{mail}', ex)
+            print('\n' + f'{mail}', ex)
 
 
-async def main(email: list):
-    tasks = [asyncio.create_task(check_mailbox(email, _)) for _ in range(5)]
+async def main():
+    tasks = [asyncio.create_task(check_mailbox(emails)) for _ in range(5)]
     await asyncio.gather(*tasks)
 
 
@@ -110,5 +110,5 @@ if __name__ == '__main__':
     with open(email_file, encoding='utf-8') as file:
         emails = [row.strip() for row in file]
 
-    asyncio.run(main(emails))
-    logger.info('work is done!')
+    asyncio.run(main())
+    print('work is done!')
